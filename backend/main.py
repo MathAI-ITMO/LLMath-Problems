@@ -11,6 +11,8 @@ MONGO_DETAILS = "mongodb://mongoadmin:mongoadmin@mongo:27017/?authSource=admin"
 client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DETAILS)
 database = client.my_database
 collection = database.problems_collection
+names_collection = database.names_collection
+binding_collection = database.binding_collection
 
 
 class PyObjectId(ObjectId):
@@ -54,6 +56,13 @@ class Problem(BaseModel):
         arbitrary_types_allowed = True
         json_encoders = {ObjectId: str}
 
+class ProblemWithName(BaseModel):
+    name: str
+    problem_id: PyObjectId
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
 
 # --- Эндпоинты API ---
 
@@ -113,3 +122,41 @@ async def delete_problem(id: str):
 async def get_all_problems():
     problems = await collection.find().to_list(length=1000)
     return problems
+
+# Создать имя задачи (POST /problems/give_a_name)
+@app.post("/api/give_a_name", response_model=str)
+async def give_a_name_a_problem(problem_with_name: ProblemWithName):
+    problem_name_dump = problem_with_name.model_dump(by_alias=True)
+    name = problem_name_dump["name"]
+    problem_id = problem_name_dump["problem_id"]
+    print(name, problem_id)
+    try:
+        problem = await collection.find_one({"_id": problem_id})
+    except:
+        raise HTTPException(status_code=404, detail="Задача не найдена")
+    created_name = None
+    if "names_collection" in await database.list_collection_names():
+        created_name = await names_collection.find_one({"name": name})
+    if created_name is None:
+        name_id = await names_collection.insert_one({"name": name})
+        created_name = await names_collection.find_one({"_id": name_id.inserted_id})
+    binding = await binding_collection.insert_one({"name_id": created_name['_id'], "problem_id": problem_id})    
+    return f"Задаче: '{problem_id}' присовено имя '{name}'"
+
+
+# Получение всех задач с определенным именем(GET /problems)
+@app.get("/api/get_problems_by_name", response_model=List[Problem])
+async def get_problems_by_name(problem_name: str):
+    try: 
+        name_id =(await names_collection.find_one({"name": problem_name}))["_id"]
+    except:
+        raise HTTPException(status_code=404, detail="Имя не найдено")
+    problems = [await collection.find_one({"_id": binding["problem_id"]}) 
+                for binding in (await binding_collection.find({"name_id": name_id}).to_list())]
+    return problems
+
+# Получение всех имен (GET /names)
+@app.get("/api/names", response_model=List[str])
+async def get_all_names():
+    names = [name_obj["name"] for name_obj in await names_collection.find().to_list()]
+    return names
