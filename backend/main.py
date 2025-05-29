@@ -3,10 +3,13 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
 import motor.motor_asyncio
+import os
+from dotenv import load_dotenv
 
 app = FastAPI()
 
-MONGO_DETAILS = "mongodb://mongoadmin:mongoadmin@mongo:27017/?authSource=admin"
+load_dotenv()
+MONGO_DETAILS = os.environ['CONNECTION_STRING']
 
 client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DETAILS)
 database = client.my_database
