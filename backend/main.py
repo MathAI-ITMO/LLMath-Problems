@@ -3,26 +3,11 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
 import motor.motor_asyncio
-from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# Настройка CORS
-origins = [
-    "https://localhost:8080",  # Адрес вашего фронтенда (Vite HMR работает по HTTPS)
-    "http://localhost:8080",   # Также можно добавить HTTP версию, если используется
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,       # Список разрешенных источников
-    allow_credentials=True,    # Разрешить cookies
-    allow_methods=["*"],       # Разрешить все HTTP-методы (GET, POST, PUT и т.д.)
-    allow_headers=["*"],       # Разрешить все заголовки
-)
-# --- Конец блока CORS ---
-
-MONGO_DETAILS = "mongodb://mongoadmin:mongoadmin@mongo:27017/?authSource=admin"
+load_dotenv()
+MONGO_DETAILS = os.environ['CONNECTION_STRING']
 
 client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DETAILS)
 database = client.my_database
