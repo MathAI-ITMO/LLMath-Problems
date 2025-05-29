@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
 import motor.motor_asyncio
+import os
+from dotenv import load_dotenv
 
 app = FastAPI()
 
