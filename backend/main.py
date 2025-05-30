@@ -5,23 +5,6 @@ from bson import ObjectId
 import motor.motor_asyncio
 import os
 from dotenv import load_dotenv
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI()
-
-origins = [
-    "https://math-llm.dev.mgsds.com/",  # Адрес вашего фронтенда (Vite HMR работает по HTTPS)
-    "http З://math-llm.dev.mgsds.com/",   # Также можно добавить HTTP версию, если используется
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,       # Список разрешенных источников
-    allow_credentials=True,    # Разрешить cookies
-    allow_methods=["*"],       # Разрешить все HTTP-методы (GET, POST, PUT и т.д.)
-    allow_headers=["*"],       # Разрешить все заголовки
-)
-# --- Конец блока CORS ---
 
 app = FastAPI()
 
