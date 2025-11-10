@@ -4,14 +4,14 @@ from typing import List, Optional, Dict, Any
 from bson import ObjectId
 import motor.motor_asyncio
 from fastapi.middleware.cors import CORSMiddleware
+from config import config
 
 app = FastAPI()
 
 # Настройка CORS
-origins = [
-    "https://localhost:8080",  # Адрес вашего фронтенда (Vite HMR работает по HTTPS)
-    "http://localhost:8080",   # Также можно добавить HTTP версию, если используется
-]
+# CORS origins берутся из переменной окружения PROBLEMS_CORS_ORIGINS (через запятую)
+# или из config.py
+origins = [origin.strip() for origin in config.CORS_ORIGINS]
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,7 +22,8 @@ app.add_middleware(
 )
 # --- Конец блока CORS ---
 
-MONGO_DETAILS = "mongodb://mongoadmin:mongoadmin@mongo:27017/?authSource=admin"
+# Строка подключения к MongoDB берется из config.py
+MONGO_DETAILS = config.MONGO_DETAILS
 
 client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DETAILS)
 database = client.my_database
@@ -68,6 +69,7 @@ class Problem(BaseModel):
     result: Optional[str] = ""
     solution: Solution
     llm_solution: Optional[Any] = None
+    theory_link: Optional[str] = None
 
     class Config:
         populate_by_name = True

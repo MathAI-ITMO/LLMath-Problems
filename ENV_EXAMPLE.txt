@@ -1,0 +1,17 @@
+# LLMath-Problems Backend Configuration
+# Скопируйте этот файл в .env для локальной разработки
+# Или установите переменные окружения напрямую
+
+# CORS origins (через запятую)
+PROBLEMS_CORS_ORIGINS=http://localhost:8080,https://localhost:8080
+
+# MongoDB connection settings
+MONGO_HOST=mongo
+MONGO_PORT=27017
+MONGO_USER=mongoadmin
+MONGO_PASSWORD=mongoadmin
+MONGO_DB=my_database
+MONGO_AUTH_SOURCE=admin
+
+# Примечание: Все настройки также можно изменить в backend/config.py
+
