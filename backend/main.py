@@ -68,6 +68,7 @@ class Problem(BaseModel):
     result: Optional[str] = ""
     solution: Solution
     llm_solution: Optional[Any] = None
+    theory_link: Optional[str] = None
 
     class Config:
         populate_by_name = True
