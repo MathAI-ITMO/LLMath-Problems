@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
 import motor.motor_asyncio
@@ -24,7 +24,7 @@ class PyObjectId(ObjectId):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v: any, info: any) -> ObjectId:
+    def validate(cls, v: Any, info: Any) -> ObjectId:
         if not ObjectId.is_valid(v):
             raise ValueError("Неверный ObjectId")
         return ObjectId(v)
@@ -56,18 +56,20 @@ class Problem(BaseModel):
     solution: Solution
     llm_solution: Optional[Any] = None
 
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str},
+    )
 
 class ProblemWithType(BaseModel):
     type_name: str
     problem_id: PyObjectId
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str},
+    )
 
 # --- Эндпоинты API ---
 
