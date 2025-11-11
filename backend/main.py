@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
 import motor.motor_asyncio
+
 import os
 from dotenv import load_dotenv
 
@@ -55,6 +56,7 @@ class Problem(BaseModel):
     result: Optional[str] = ""
     solution: Solution
     llm_solution: Optional[Any] = None
+    theory_link: Optional[str] = None
 
     model_config = ConfigDict(
         populate_by_name=True,
