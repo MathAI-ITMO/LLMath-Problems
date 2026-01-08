@@ -3,33 +3,19 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
 import motor.motor_asyncio
-from fastapi.middleware.cors import CORSMiddleware
-from config import config
+import os
+from dotenv import load_dotenv
 
 app = FastAPI()
 
-# Настройка CORS
-# CORS origins берутся из переменной окружения PROBLEMS_CORS_ORIGINS (через запятую)
-# или из config.py
-origins = [origin.strip() for origin in config.CORS_ORIGINS]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,       # Список разрешенных источников
-    allow_credentials=True,    # Разрешить cookies
-    allow_methods=["*"],       # Разрешить все HTTP-методы (GET, POST, PUT и т.д.)
-    allow_headers=["*"],       # Разрешить все заголовки
-)
-# --- Конец блока CORS ---
-
-# Строка подключения к MongoDB берется из config.py
-MONGO_DETAILS = config.MONGO_DETAILS
+load_dotenv()
+MONGO_DETAILS = os.environ['CONNECTION_STRING']
 
 client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_DETAILS)
 database = client.my_database
-problems_collection = database.problems_collection
-types_collection = database.types_collection
-type_bindings_collection = database.type_bindings_collection
+collection = database.collection
+names_collection = database.names_collection
+binding_collection = database.binding_collection
 
 
 class PyObjectId(ObjectId):
@@ -90,8 +76,8 @@ class ProblemWithType(BaseModel):
 @app.post("/api/problems", response_model=Problem)
 async def create_problem(problem: Problem):
     problem_dict = problem.model_dump(by_alias=True)
-    result = await problems_collection.insert_one(problem_dict)
-    created_problem = await problems_collection.find_one({"_id": result.inserted_id})
+    result = await collection.insert_one(problem_dict)
+    created_problem = await collection.find_one({"_id": result.inserted_id})
     if created_problem:
         return created_problem
     raise HTTPException(status_code=500, detail="Ошибка при создании задачи")
@@ -103,7 +89,7 @@ async def get_problem(id: str):
         obj_id = ObjectId(id)
     except Exception:
         raise HTTPException(status_code=400, detail="Некорректный идентификатор")
-    problem = await problems_collection.find_one({"_id": obj_id})
+    problem = await collection.find_one({"_id": obj_id})
     if problem is not None:
         return problem
     raise HTTPException(status_code=404, detail="Задача не найдена")
@@ -119,14 +105,14 @@ async def update_problem(id: str, problem_update_data: Problem):
     
     update_data = problem_update_data.model_dump(by_alias=True, exclude={"id"})
 
-    update_result = await problems_collection.update_one({"_id": obj_id}, {"$set": update_data})
+    update_result = await collection.update_one({"_id": obj_id}, {"$set": update_data})
     
     if update_result.modified_count == 1:
-        updated_problem = await problems_collection.find_one({"_id": obj_id})
+        updated_problem = await collection.find_one({"_id": obj_id})
         if updated_problem is not None:
             return updated_problem
     
-    existing_problem = await problems_collection.find_one({"_id": obj_id})
+    existing_problem = await collection.find_one({"_id": obj_id})
     if existing_problem is not None:
         return existing_problem
         
@@ -140,9 +126,9 @@ async def delete_problem(id: str):
     except Exception:
         raise HTTPException(status_code=400, detail="Некорректный идентификатор")
     
-    await type_bindings_collection.delete_many({"problem_id": obj_id})
+    await binding_collection.delete_many({"problem_id": obj_id})
 
-    delete_result = await problems_collection.delete_one({"_id": obj_id})
+    delete_result = await collection.delete_one({"_id": obj_id})
     if delete_result.deleted_count == 1:
         return f"Задача Id={id} была удалена"
     raise HTTPException(status_code=404, detail="Задача не найдена для удаления")
@@ -150,7 +136,7 @@ async def delete_problem(id: str):
 # Получение всех задач (GET /problems)
 @app.get("/api/problems", response_model=List[Problem])
 async def get_all_problems():
-    problems = await problems_collection.find().to_list(length=1000)
+    problems = await collection.find().to_list(length=1000)
     return problems
 
 # Присвоить тип задаче (POST /api/assign_type)
@@ -161,37 +147,37 @@ async def assign_type_to_problem(problem_with_type: ProblemWithType):
     problem_id = type_binding_dump["problem_id"]
 
     try:
-        problem_doc = await problems_collection.find_one({"_id": ObjectId(problem_id)})
+        problem_doc = await collection.find_one({"_id": ObjectId(problem_id)})
         if not problem_doc:
             raise HTTPException(status_code=404, detail=f"Задача с ID {problem_id} не найдена")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Некорректный problem_id: {problem_id}. Error: {e}")
 
-    existing_type = await types_collection.find_one({"type_name": type_name})
+    existing_type = await names_collection.find_one({"type_name": type_name})
     if not existing_type:
-        insert_result = await types_collection.insert_one({"type_name": type_name})
+        insert_result = await names_collection.insert_one({"type_name": type_name})
         type_id = insert_result.inserted_id
     else:
         type_id = existing_type["_id"]
 
-    existing_binding = await type_bindings_collection.find_one({"type_id": type_id, "problem_id": ObjectId(problem_id)})
+    existing_binding = await binding_collection.find_one({"type_id": type_id, "problem_id": ObjectId(problem_id)})
     if existing_binding:
         return f"Задаче ID: '{problem_id}' уже присвоен тип '{type_name}'"
 
-    await type_bindings_collection.insert_one({"type_id": type_id, "problem_id": ObjectId(problem_id)})
+    await binding_collection.insert_one({"type_id": type_id, "problem_id": ObjectId(problem_id)})
     return f"Задаче ID: '{problem_id}' присвоен тип '{type_name}'"
 
 # Получение всех задач с определенным типом (GET /api/get_problems_by_type)
 @app.get("/api/get_problems_by_type", response_model=List[Problem])
 async def get_problems_by_type(problem_type: str):
-    type_doc = await types_collection.find_one({"type_name": problem_type})
+    type_doc = await names_collection.find_one({"type_name": problem_type})
     if not type_doc:
         return [] 
     
     type_id_val = type_doc["_id"]
     
     problems_data = []
-    bindings = await type_bindings_collection.find({"type_id": type_id_val}).to_list(length=None) 
+    bindings = await binding_collection.find({"type_id": type_id_val}).to_list(length=None) 
     
     for binding in bindings:
         problem_id_val = binding.get("problem_id") 
@@ -199,7 +185,7 @@ async def get_problems_by_type(problem_type: str):
             print(f"Warning: Binding found for type_id {type_id_val} with no problem_id.")
             continue
 
-        problem_doc = await problems_collection.find_one({"_id": problem_id_val})
+        problem_doc = await collection.find_one({"_id": problem_id_val})
         if problem_doc:
             problems_data.append(problem_doc)
         else:
@@ -210,21 +196,21 @@ async def get_problems_by_type(problem_type: str):
 # Получение всех типов (GET /api/types)
 @app.get("/api/types", response_model=List[str])
 async def get_all_types():
-    if "types_collection" not in await database.list_collection_names():
+    if "names_collection" not in await database.list_collection_names():
         return []
         
-    type_objects = await types_collection.find({}, {"type_name": 1, "_id": 0}).to_list(length=None)
+    type_objects = await names_collection.find({}, {"type_name": 1, "_id": 0}).to_list(length=None)
     types_list = [type_obj["type_name"] for type_obj in type_objects if "type_name" in type_obj]
     return types_list
 
 # Для отладки можно добавить эндпоинт для просмотра всех привязок
 @app.get("/api/debug/all_type_bindings", include_in_schema=False)
 async def get_all_type_bindings():
-    bindings = await type_bindings_collection.find().to_list(length=None)
+    bindings = await binding_collection.find().to_list(length=None)
     return [{"type_id": str(b.get("type_id")), "problem_id": str(b.get("problem_id"))} for b in bindings]
 
 # Для отладки можно добавить эндпоинт для просмотра всех типов с их ID
 @app.get("/api/debug/all_types_with_ids", include_in_schema=False)
 async def get_all_types_with_ids():
-    types = await types_collection.find().to_list(length=None)
+    types = await names_collection.find().to_list(length=None)
     return [{"_id": str(t.get("_id")), "type_name": t.get("type_name")} for t in types]
